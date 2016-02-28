@@ -1,4 +1,7 @@
 language: c
 
-script: test.sh
+
+install: make
+
+script: ./test.sh
 
