@@ -1,6 +1,4 @@
 language: c
 
-install: make
-
 script: test.sh
 

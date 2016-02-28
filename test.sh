@@ -2,7 +2,6 @@
 
 ./main.x lol
 
-
 exit
 
 

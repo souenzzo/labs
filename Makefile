@@ -5,7 +5,7 @@ all: main.o
 
 
 %.o: %.c
-	gcc -std=gnu11 -c $*.c
+	gcc -c $*.c
 
 
 test:
