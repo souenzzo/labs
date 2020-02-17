@@ -1,2 +1,10 @@
-{:paths ["src/main"]
- :deps  {org.clojure/clojure {:mvn/version "1.10.1"}}}
+{:paths   ["src/main"]
+ :deps    {org.clojure/clojure          {:mvn/version "1.10.1"}
+           io.pedestal/pedestal.service {:mvn/version "0.5.7"}
+           com.wsscode/pathom           {:mvn/version "2.2.31"}
+           com.datomic/datomic-free     {:mvn/version "0.9.5697"}
+           io.pedestal/pedestal.jetty   {:mvn/version "0.5.7"}
+           datascript                   {:mvn/version "0.18.9"}}
+ :aliases {:test {:extra-paths ["src/test" "src/dev"]
+                  :extra-deps  {org.clojure/test.check {:mvn/version "0.10.0"}
+                                midje/midje            {:mvn/version "1.9.9"}}}}}
