@@ -1,6 +1,8 @@
 (ns br.com.souenzzo.summon
   (:require [br.com.souenzzo.eql-as.alpha :as eql-as]
-            [com.wsscode.pathom.core :as p]))
+            [com.wsscode.pathom.core :as p]
+            [ubergraph.alg :as uber.alg]
+            [ubergraph.core :as uber]))
 
 (defn elements->digraph
   [elements]
@@ -44,7 +46,13 @@
 
 (defn sort-elements
   [elements]
-  elements)
+  (let [g (apply uber/digraph (elements->digraph elements))
+        idx (into {}
+                  (map (juxt ::id identity))
+                  elements)]
+    (for [id (uber.alg/topsort g)
+          :when (contains? idx id)]
+      (get idx id))))
 
 (defn start-el
   [env {::keys [input output start id requires provides]}]
@@ -66,4 +74,3 @@
   (reduce start-el
           env
           (sort-elements elements)))
-
