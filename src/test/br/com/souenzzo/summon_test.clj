@@ -27,3 +27,21 @@
       (fn? parser)
       => true)))
 
+
+(comment
+  (let [elements [(assoc driver.datascript/driver
+                    ::summon/id ::entity-conn-id
+                    ::summon/requires {::driver.datascript/schema ::entity-schema}
+                    ::summon/provides {::entity-conn ::driver.datascript/conn})
+                  (assoc driver.datascript/driver
+                    ::summon/id ::event-conn-id
+                    ::summon/requires {::driver.datascript/schema ::event-schema}
+                    ::summon/provides {::event-conn ::driver.datascript/conn})
+                  (assoc driver.pathom/driver
+                    ::summon/id ::parser
+                    ::summon/requires {::event-conn  ::event-conn
+                                       ::entity-conn ::entity-conn}
+                    ::summon/provides {::parser ::driver.pathom/parser})]]
+    (->> (summon/elements->digraph elements)
+         (apply uber/digraph)
+         uber/viz-graph)))

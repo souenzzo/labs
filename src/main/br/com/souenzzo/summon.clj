@@ -29,12 +29,17 @@
                                        {}
                                        elements)]
     (concat [[::env {:label "env"}]]
-            (for [{::keys [id driver]} elements
-                  x (concat [[id {:label (str (pr-str id) (when driver
-                                                            (str "(" (pr-str driver) ")")))}]]
+            (for [{::keys [id driver requires]} elements
+                  x (concat [[id {:label (str (str "id: " (pr-str id))
+                                              (when driver
+                                                (str "\ndriver: " (pr-str driver))))}]]
                             (for [require (get index-element->requires id)
-                                  :let [from (get index-provide->element require ::env)]]
-                              [from id {:label (pr-str require)}]))]
+                                  :let [from (get index-provide->element require ::env)
+                                        as (get (eql-as/reverse requires) require)
+                                        from-attr (get (::provides (get index-id->element from)) require)]]
+                              [from id {:label (str (str "require: " (pr-str require))
+                                                    (str "\nas: " (pr-str as))
+                                                    (str "\nfrom: " (pr-str from-attr)))}]))]
               x))))
 
 (defn start-el
