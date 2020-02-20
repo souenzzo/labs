@@ -4,7 +4,11 @@
            com.wsscode/pathom           {:mvn/version "2.2.31"}
            com.datomic/datomic-free     {:mvn/version "0.9.5697"}
            io.pedestal/pedestal.jetty   {:mvn/version "0.5.7"}
-           datascript                   {:mvn/version "0.18.9"}}
+           br.com.souenzzo/eql-as       {:git/url "https://github.com/souenzzo/eql-as.git"
+                                         :sha     "e59e457c77603384276d67ed446c2d1cbc8cab85"}
+           datascript/datascript        {:mvn/version "0.18.9"}}
  :aliases {:test {:extra-paths ["src/test" "src/dev"]
-                  :extra-deps  {org.clojure/test.check {:mvn/version "0.10.0"}
-                                midje/midje            {:mvn/version "1.9.9"}}}}}
+                  :extra-deps  {org.clojure/test.check     {:mvn/version "0.10.0"}
+                                com.stuartsierra/component {:mvn/version "0.4.0"}
+                                ubergraph/ubergraph        {:mvn/version "0.8.2"}
+                                midje/midje                {:mvn/version "1.9.9"}}}}}
