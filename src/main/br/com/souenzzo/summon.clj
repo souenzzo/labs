@@ -42,6 +42,10 @@
                                                     (str "\nfrom: " (pr-str from-attr)))}]))]
               x))))
 
+(defn sort-elements
+  [elements]
+  elements)
+
 (defn start-el
   [env {::keys [input output start id requires provides]}]
   (let [input-selection (eql-as/ident-query {::eql-as/as-map requires
@@ -61,6 +65,5 @@
   [env elements]
   (reduce start-el
           env
-          ;; TODO: Sort elements
-          elements))
+          (sort-elements elements)))
 
