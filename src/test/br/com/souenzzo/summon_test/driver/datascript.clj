@@ -3,8 +3,9 @@
             [datascript.core :as ds]))
 
 (def driver
-  {::summon/driver ::driver
-   ::summon/input  [::schema]
+  {::summon/input  [::schema]
    ::summon/output [::conn]
    ::summon/start  (fn [{::keys [schema]}]
-                     {::conn (ds/create-conn schema)})})
+                     {::conn (ds/create-conn schema)})
+   ::summon/stop   (fn [env]
+                     (dissoc env ::conn))})

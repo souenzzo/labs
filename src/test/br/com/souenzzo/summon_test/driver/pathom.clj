@@ -5,4 +5,6 @@
 (def driver
   {::summon/output [::parser]
    ::summon/start  (fn [env]
-                     {::parser (p/parser env)})})
+                     {::parser (p/parser env)})
+   ::summon/stop   (fn [env]
+                     (dissoc env ::parser))})
