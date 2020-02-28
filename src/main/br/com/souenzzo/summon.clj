@@ -16,6 +16,8 @@
 (s/def ::input (s/coll-of qualified-keyword?))
 (s/def ::output (s/coll-of qualified-keyword?))
 (s/def ::start fn?)
+(s/def ::system (s/keys ::req [::drivers
+                               ::elements]))
 
 (defn elements->digraph
   [root elements]
@@ -74,17 +76,22 @@
 (defn explain-data
   [{::keys [drivers elements]
     :as    system}]
-  (let [elements (for [[id el] elements]
-                   (assoc el ::id id))]
-    (concat (for [k (required-globals system)
-                  :when (not (contains? system k))]
-              {::issue ::missing-global
-               ::key   k})
-            (for [{::keys [driver id]} elements
-                  :when (not (contains? drivers driver))]
-              {::issue       ::missing-driver
-               ::required-by id
-               ::driver      driver}))))
+  (concat (for [k (required-globals system)
+                :when (not (contains? system k))]
+            {::issue ::missing-global
+             ::key   k})
+          (for [[id {::keys [driver]}] elements
+                :when (not (contains? drivers driver))]
+            {::issue       ::missing-driver
+             ::required-by id
+             ::driver      driver})
+          (for [[id {::keys [driver requires]}] elements
+                missing-input (remove (set (keys requires))
+                                      (get-in drivers [driver ::input]))]
+            {::issue       ::missing-input
+             ::required-by id
+             ::driver      driver
+             ::missing     missing-input})))
 
 (defn valid?
   [system]

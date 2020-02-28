@@ -45,6 +45,13 @@
          ::summon/driver      ::driver.pathom/driver
          ::summon/required-by ::parser}])
   (fact
+    "Check missing inputs"
+    (summon/explain-data (update-in simple-system [::summon/elements ::entity-conn-id] assoc ::summon/requires {}))
+    => [{::summon/issue       ::summon/missing-input,
+         ::summon/missing     ::driver.datascript/schema
+         ::summon/driver      ::driver.datascript/driver
+         ::summon/required-by ::entity-conn-id}])
+  (fact
     "Check missing globals"
     (summon/explain-data (-> simple-system
                              (update ::summon/elements dissoc ::event-conn-id)
