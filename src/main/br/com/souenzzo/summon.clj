@@ -3,8 +3,7 @@
             [com.wsscode.pathom.core :as p]
             [ubergraph.alg :as uber.alg]
             [ubergraph.core :as uber]
-            [clojure.spec.alpha :as s]
-            [clojure.string :as string]))
+            [clojure.spec.alpha :as s]))
 
 (s/def ::driver qualified-keyword?)
 (s/def ::drivers (s/map-of ::driver ::driver-impl))
@@ -12,7 +11,7 @@
 (s/def ::driver-impl (s/keys :req [::input
                                    ::output
                                    ::start]))
-(s/def ::elements (s/coll-of (s/keys :req [::id ::driver])))
+(s/def ::elements (s/map-of ::id (s/keys :req [::driver])))
 (s/def ::id qualified-keyword?)
 (s/def ::input (s/coll-of qualified-keyword?))
 (s/def ::output (s/coll-of qualified-keyword?))
@@ -20,24 +19,26 @@
 
 (defn elements->digraph
   [root elements]
-  (let [index-id->element (into {} (map (juxt ::id identity))
+  (let [elements (for [[id el] elements]
+                   (assoc el ::id id))
+        index-id->element (into {} (map (juxt ::id identity))
                                 elements)
         index-element->requires (reduce (fn [idx {::keys [id requires]}]
                                           (assoc idx
                                             id (set (vals requires))))
                                         {}
                                         elements)
-        index-require->element (reduce (fn [idx {::keys [id requires]}]
-                                         (into idx
-                                               (for [r (keys requires)]
-                                                 [r id])))
-                                       {}
-                                       elements)
-        index-element->provides (reduce (fn [idx {::keys [id provides]}]
-                                          (assoc idx
-                                            id (set (keys provides))))
-                                        {}
-                                        elements)
+        #_#_index-require->element (reduce (fn [idx {::keys [id requires]}]
+                                             (into idx
+                                                   (for [r (keys requires)]
+                                                     [r id])))
+                                           {}
+                                           elements)
+        #_#_index-element->provides (reduce (fn [idx {::keys [id provides]}]
+                                              (assoc idx
+                                                id (set (keys provides))))
+                                            {}
+                                            elements)
         index-provide->element (reduce (fn [idx {::keys [id provides]}]
                                          (into idx
                                                (for [p (keys provides)]
@@ -62,27 +63,39 @@
               x))))
 
 (defn graph
-  [{::keys [elements]}]
-  (apply uber/digraph (elements->digraph ::system elements)))
+  [{::keys [elements]} root]
+  (apply uber/digraph (elements->digraph root elements)))
 
 (defn required-globals
-  [{::keys [elements]}]
-  (let [g (graph elements)]
+  [system]
+  (let [g (graph system ::system)]
     (mapv #(uber/attr g % :id) (uber/find-edges g {:src ::system}))))
 
-(defn valid?
-  [{::keys [elements drivers]
+(defn explain-data
+  [{::keys [drivers elements]
     :as    system}]
-  (and
-    (every? #(contains? system %) (required-globals system))
-    (empty? (for [{::keys [driver]} elements
+  (let [elements (for [[id el] elements]
+                   (assoc el ::id id))]
+    (concat (for [k (required-globals system)
+                  :when (not (contains? system k))]
+              {::issue ::missing-global
+               ::key   k})
+            (for [{::keys [driver id]} elements
                   :when (not (contains? drivers driver))]
-              driver))))
+              {::issue       ::missing-driver
+               ::required-by id
+               ::driver      driver}))))
+
+(defn valid?
+  [system]
+  (empty? (explain-data system)))
 
 (defn elements-for-start
   [{::keys [elements]
     :as    system}]
-  (let [g (graph system)
+  (let [elements (for [[id el] elements]
+                   (assoc el ::id id))
+        g (graph system ::system)
         idx (into {}
                   (map (juxt ::id identity))
                   elements)]
@@ -115,13 +128,9 @@
           (elements-for-start system)))
 
 (defn elements-for-stop
-  [{::keys [elements]
-    :as    system}]
-  (let [g (graph system)
-        idx (into {}
-                  (map (juxt ::id identity))
-                  elements)]
-    elements))
+  [{::keys [elements]}]
+  (for [[id el] elements]
+    (assoc el ::id id)))
 
 (defn stop-el
   [{::keys [drivers]
