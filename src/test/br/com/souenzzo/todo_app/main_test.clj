@@ -2,6 +2,8 @@
   (:require [clojure.test :refer [deftest]]
             [io.pedestal.http :as http]
             [br.com.souenzzo.todo-app.todo :as todo]
+            [br.com.souenzzo.todo-app.session :as session]
+            [br.com.souenzzo.todo-app.account :as account]
             [next.jdbc :as j]
             [io.pedestal.test :refer [response-for]]
             [br.com.souenzzo.todo-app.main :as todo-app.main]
@@ -21,48 +23,29 @@
     (catch Exception e
       x)))
 
-(defn select-in
-  [x selection]
-  (letfn [(impl [x selection]
-            (cond
-              (not (vector? selection)) (impl x [selection])
-              (map? x) (reduce (fn [[acc] sel]
-                                 (cond
-                                   (map? sel) (reduced [(into {}
-                                                              (for [[k v] sel
-                                                                    :let [vv (impl acc v)]
-                                                                    :when vv]
-                                                                [k (first vv)]))])
-                                   (contains? acc sel) [(get acc sel)]))
-                               [x]
-                               selection)
-              (coll? x) [(mapv #(select-in % selection) x)]
-              :else [x]))]
-    (first (impl x selection))))
-
 (deftest selector
   (fact
     "get-in"
-    (select-in {:b 1}
-               :b)
+    (todo-app/select-in {:b 1}
+                        :b)
     => 1)
   (fact
     "simple rename"
-    (select-in {:b 1} {:a :b})
+    (todo-app/select-in {:b 1} {:a :b})
     => {:a 1})
   (fact
     "missing rename"
-    (select-in {} {:a :b})
+    (todo-app/select-in {} {:a :b})
     => {})
   (fact
     "join"
-    (select-in {:b {:d 1}}
-               {:a [:b {:c :d}]})
+    (todo-app/select-in {:b {:d 1}}
+                        {:a [:b {:c :d}]})
     => {:a {:c 1}})
   (fact
     "double join"
-    (select-in {:b {:d 1}}
-               {:a [:b :d]})
+    (todo-app/select-in {:b {:d 1}}
+                        {:a [:b :d]})
     => {:a 1}))
 
 (deftest app
@@ -91,7 +74,7 @@
                                                            (fn [req]
                                                              (let [tx (eql/ast->query {:type     :root,
                                                                                        :children [(assoc op
-                                                                                                    :params (select-in req req->param))]})
+                                                                                                    :params (todo-app/select-in req req->param))]})
                                                                    result (parser req tx)]
                                                                {:body   (json/write-str (get result mutation))
                                                                 :status 200}))]
@@ -104,7 +87,9 @@
       (j/execute! conn ["DROP DATABASE IF EXISTS app"])
       (j/execute! conn ["CREATE DATABASE app"]))
     (with-open [conn (j/get-connection db-spec)]
-      (j/execute! conn (todo/tx-sql-schema)))
+      (j/execute! conn (todo/tx-sql-schema))
+      (j/execute! conn (account/tx-sql-schema))
+      (j/execute! conn (session/tx-sql-schema)))
     (fact
       (-> (response-for service-fn :post "/todo"
                         :headers {"Content-Type" "application/json"}

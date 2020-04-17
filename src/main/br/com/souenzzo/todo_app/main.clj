@@ -1,5 +1,8 @@
 (ns br.com.souenzzo.todo-app.main
-  (:require [br.com.souenzzo.todo-app.todo :as todo]))
+  (:require [br.com.souenzzo.todo-app.todo :as todo]
+            [br.com.souenzzo.todo-app.account :as account]
+            [br.com.souenzzo.todo-app.session :as session]))
+
 
 (def routes
   [{::route-name ::create-todo
@@ -13,7 +16,9 @@
 (defn register
   []
   (concat
-    (todo/register)))
+    (todo/register)
+    (account/register)
+    (session/register)))
 
 (defn -main
   [& _]
