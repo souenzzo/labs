@@ -1,7 +1,11 @@
 {:paths   ["src/main"]
  :deps    {org.clojure/clojure          {:mvn/version "1.10.1"}
            io.pedestal/pedestal.service {:mvn/version "0.5.7"}
-           com.wsscode/pathom           {:mvn/version "2.2.31"}
+           com.wsscode/pathom           {:mvn/version "2.3.0-alpha6"}
+           org.apache.poi/poi           {:mvn/version "4.1.2"}
+           org.apache.poi/poi-ooxml     {:mvn/version "4.1.2"}
+
+
            com.datomic/datomic-free     {:mvn/version "0.9.5697"}
            io.pedestal/pedestal.jetty   {:mvn/version "0.5.7"}
            br.com.souenzzo/eql-as       {:git/url "https://github.com/souenzzo/eql-as.git"
@@ -11,4 +15,6 @@
                   :extra-deps  {org.clojure/test.check     {:mvn/version "0.10.0"}
                                 com.stuartsierra/component {:mvn/version "0.4.0"}
                                 ubergraph/ubergraph        {:mvn/version "0.8.2"}
+                                hiccup/hiccup              {:mvn/version "2.0.0-alpha2"}
                                 midje/midje                {:mvn/version "1.9.9"}}}}}
+
