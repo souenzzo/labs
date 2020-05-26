@@ -34,6 +34,30 @@
                                           :profiles    (apply sorted-set profiles)})]
                     (spit config-file (with-out-str (pprint/pprint new-config)))
                     {})))
+   (pc/mutation `start-repl
+                {::pc/sym `start-repl}
+                (fn [{:keys [parser] :as env} {::keys [dir profiles]}]
+                  (let [profiles (map keyword (remove nil? (if (coll? profiles) profiles [profiles])))
+                        eid [::dir dir]
+                        {::keys [path]} (-> (parser env `[{~eid [::path]}])
+                                            (get eid))
+                        pb (-> (new ProcessBuilder ^"[Ljava.lang.String;" (into-array ["/usr/bin/java" "-cp" path "clojure.main"]))
+                               (.directory (io/file dir)))]
+
+                    {})))
+   (pc/mutation `delete-profile
+                {::pc/sym `delete-profile}
+                (fn [_ {::keys [dir description]}]
+                  (let [config-file (io/file dir ".repl-configs")
+                        current-config (if (.exists config-file)
+                                         (edn/read-string (slurp config-file))
+                                         [])
+                        new-config (remove
+                                     (comp #{description} :description)
+                                     current-config)]
+                    (spit config-file (with-out-str (pprint/pprint (vec new-config))))
+                    {})))
+
    (pc/resolver `repl-configs
                 {::pc/input  #{::dir}
                  ::pc/output [::repl-configs]}
@@ -42,7 +66,9 @@
                         current-config (if (.exists config-file)
                                          (edn/read-string (slurp config-file))
                                          [])]
-                    {::repl-configs current-config})))
+                    {::repl-configs (for [{:keys [description profiles]} current-config]
+                                      {::description description
+                                       ::profiles    profiles})})))
    (pc/resolver `deps
                 {::pc/input  #{::dir}
                  ::pc/output [::deps]}
@@ -56,22 +82,17 @@
                                  ::href (str "/project/" (URLEncoder/encode (.getCanonicalPath file)
                                                                             StandardCharsets/UTF_8))
                                  ::dir  (.getCanonicalPath file)})}))
-   (pc/resolver `command
-                {::pc/input  #{::path
-                               ::java-cmd}
-                 ::pc/output [::command]}
-                (fn [_ {::keys [java-cmd path]}]
-                  (prn [:ok java-cmd path])
-                  {::command [java-cmd
-                              "-classpath"
-                              path
-                              "clojure.main"]}))
    (pc/resolver `classpath
                 {::pc/input  #{::dir}
                  ::pc/output [::path]}
-                (fn [_ {::pc/keys [dir]}]
-                  (let [[cp & opts] (reverse (string/split-lines (:out (binding [sh/*sh-dir* dir]
-                                                                         (sh/sh "clojure" "-Sverbose" "-Spath")))))
+                (fn [_ {::pc/keys [dir profiles]}]
+                  (let [profiles (string/join ":" (map name profiles))
+                        profiles (when-not (string/blank? profiles)
+                                   (str "-A:" profiles))
+                        [cp & opts] (reverse (string/split-lines (:out (binding [sh/*sh-dir* dir]
+                                                                         (if profiles
+                                                                           (sh/sh "clojure" "-Sverbose" "-Spath" profiles)
+                                                                           (sh/sh "clojure" "-Sverbose" "-Spath"))))))
                         opts (into {}
                                    (comp
                                      (remove string/blank?)
@@ -88,23 +109,13 @@
                   {::profiles (-> deps :aliases keys)}))])
 
 (def parser
-  (p/parser {::p/plugins [(pc/connect-plugin {::pc/register register})
-                          p/elide-special-outputs-plugin]
+  (p/parser {::p/plugins [(pc/connect-plugin {::pc/register register})]
              ::p/mutate  pc/mutate
              ::p/env     {::p/reader               [p/map-reader
                                                     pc/reader3
                                                     pc/open-ident-reader
                                                     p/env-placeholder-reader]
                           ::p/placeholder-prefixes #{">"}}}))
-
-(defn index
-  [req]
-  [:div
-   [:code (pr-str (parser (assoc req ::p/entity {::java-cmd "/usr/bin/java"})
-                          [{[::dir "/home/souenzzo/src/eql-datomic"]
-                            [::path
-                             ::command]}]))]])
-
 
 (defn projects
   [req]
@@ -121,14 +132,41 @@
                 :dir
                 str
                 (URLDecoder/decode StandardCharsets/UTF_8))
-        {::keys [repl-configs profiles]} (-> (parser req [{[::dir dir] [{::repl-configs [::description ]}
+        {::keys [repl-configs profiles]} (-> (parser req [{[::dir dir] [{::repl-configs [::description
+                                                                                         ::profiles]}
                                                                         ::profiles]}])
                                              (get [::dir dir]))]
     [:div
      [:div
       "REPL's"
-      (for [{::keys [] :as repl-config} repl-configs]
-        [:li (pr-str repl-config)])]
+      (for [{::keys [description profiles] :as repl-config} repl-configs]
+        [:li
+         {:style {:padding "1rem"}}
+         [:div description]
+         [:div profiles]
+         [:form
+          {:method "POST"
+           :action (str "/" `delete-profile)}
+          [:input {:hidden true
+                   :name   (str `description)
+                   :value  description}]
+          [:input {:hidden true
+                   :name   (str `dir)
+                   :value  dir}]
+          [:input {:type  "submit"
+                   :value (str `delete-profile)}]]
+         [:form
+          {:method "POST"
+           :action (str "/" `start-repl)}
+          (for [profile profiles]
+            [:input {:hidden true
+                     :name   (str `profiles)
+                     :value  (name profile)}])
+          [:input {:hidden true
+                   :name   (str `dir)
+                   :value  dir}]
+          [:input {:type  "submit"
+                   :value (str `start-repl)}]]])]
      [:form
       {:style  {:display        "flex"
                 :flex-direction "column"}
@@ -138,8 +176,9 @@
 
       [:label
        "Dir"
-       [:input {:name  (str `dir)
-                :value dir}]]
+       [:input {:name   (str `dir)
+                :hidden true
+                :value  dir}]]
       [:label
        "REPL Name"
        [:input {:name  (str `description)
@@ -150,7 +189,7 @@
          [:label
           [:input {:name  (str `profiles)
                    :type  "checkbox"
-                   :value (pr-str profile)}]
+                   :value (name profile)}]
           (pr-str profile)])]
       [:input {:type "submit"}]]]))
 
@@ -167,6 +206,8 @@
                                          (h/raw "<!DOCTYPE html>")
                                          [:html
                                           [:head
+                                           [:link {:rel "stylesheet" :href "https://unpkg.com/mvp.css"}]
+                                           [:meta {:charset "UTF-8"}]
                                            [:title "my-clj-admin"]]
                                           [:body
                                            [:a {:href "/"} "home"]

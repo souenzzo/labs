@@ -1,8 +1,15 @@
 (ns br.com.souenzzo.cljc-core
-  (:refer-clojure :only [defn first next defmacro list cons ex-info let
-                         reduced reduced? fn volatile! vreset! sequence =
-                         reduce persistent! transient apply assoc  nil? seq assoc! conj get])
+  (:refer-clojure :only [defn first next defmacro list cons ex-info let fn volatile! vreset! sequence = defrecord
+                         with-meta meta loop
+                         instance? reduce persistent! transient apply assoc nil? seq assoc! conj get])
   (:require [clojure.core :as c]))
+
+
+(defmacro defn-
+  "same as defn, yielding non-public def"
+  [name & decls]
+  (list `defn (with-meta name (assoc (meta name) :private true)) decls))
+
 
 (defn second
   [x]
@@ -16,20 +23,14 @@
   [& clauses]
   (when clauses
         (list 'if (first clauses)
-              (if (next clauses)
-                (second clauses)
-                (throw (ex-info "cond requires an even number of forms"
-                                {:cognitect.anomalies/anomaly :cognitect.anomalies/incorrect})))
+              (second clauses)
               (cons `cond (next (next clauses))))))
-
-
 
 (defmacro or
   "Evaluates exprs one at a time, from left to right. If a form
   returns a logical true value, or returns that value and doesn't
   evaluate any of the other expressions, otherwise it returns the
   value of the last expression. (or) returns nil."
-  {:added "1.0"}
   ([] nil)
   ([x] x)
   ([x & next]
@@ -47,21 +48,25 @@
              (let [~form temp#]
                ~@body)))))
 
+(defrecord Reduced [x])
 
-(defn preserving-reduced
+(defn reduced?
+  [x]
+  (instance? Reduced x))
+
+(defn- preserving-reduced
   [rf]
   #(let [ret (rf %1 %2)]
      (if (reduced? ret)
-       (reduced ret)
+       (->Reduced ret)
        ret)))
 
 (defn dedupe
   "Returns a lazy sequence removing consecutive duplicates in coll.
   Returns a transducer when no collection is provided."
-  {:added "1.7"}
   ([]
    (fn [rf]
-     (let [pv (volatile! ::none)]
+     (let [pv (volatile! rf)]
        (fn
          ([] (rf))
          ([result] (rf result))
@@ -72,6 +77,23 @@
               result
               (rf result input))))))))
   ([coll] (sequence (dedupe) coll)))
+
+(defn last
+  "Return the last item in coll, in linear time"
+  [coll]
+  (if (next coll)
+    (recur (next coll))
+    (first coll)))
+
+
+(defn butlast
+  "Return a seq of all but the last item in coll, in linear time"
+  [coll]
+  (loop [ret []
+         s coll]
+    (if (next s)
+      (recur (conj ret (first s)) (next s))
+      (seq ret))))
 
 
 (defn cat
@@ -116,15 +138,15 @@
    (sequence (filter pred) coll)))
 
 (defn map
-  ([pred]
+  ([f]
    (fn [rf]
      (fn
        ([] (rf))
        ([result] (rf result))
        ([result input]
-        (rf result (pred input))))))
-  ([pred & colls]
-   (apply sequence (map pred) colls)))
+        (rf result (f input))))))
+  ([f & colls]
+   (apply sequence (map f) colls)))
 
 (defn every?
   "Returns true if (pred x) is logical true for every x in coll, else
@@ -165,3 +187,22 @@
    (reduce comp (list f g fs))))
 
 (def not-any? (comp not some))
+
+
+(defn some?
+  "Returns true if x is not nil, false otherwise."
+  [x]
+  (not (nil? x)))
+
+(defn any?
+  "Returns true given any argument."
+  [x] true)
+
+
+
+(defmacro if-not
+  "Evaluates test. If logical false, evaluates and returns then expr,
+  otherwise else expr, if supplied, else nil."
+  ([test then] `(if-not ~test ~then nil))
+  ([test then else]
+   `(if (not ~test) ~then ~else)))
