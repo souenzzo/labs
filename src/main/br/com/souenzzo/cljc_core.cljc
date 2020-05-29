@@ -1,15 +1,13 @@
 (ns br.com.souenzzo.cljc-core
   (:refer-clojure :only [defn first next defmacro list cons ex-info let fn volatile! vreset! sequence = defrecord
-                         with-meta meta loop
-                         instance? reduce persistent! transient apply assoc nil? seq assoc! conj get])
+                         defprotocol
+                         with-meta meta loop rest instance? persistent! transient apply assoc nil? seq assoc! conj get])
   (:require [clojure.core :as c]))
-
 
 (defmacro defn-
   "same as defn, yielding non-public def"
   [name & decls]
   (list `defn (with-meta name (assoc (meta name) :private true)) decls))
-
 
 (defn second
   [x]
@@ -48,11 +46,30 @@
              (let [~form temp#]
                ~@body)))))
 
-(defrecord Reduced [x])
+(defprotocol IDeref
+  (deref [x]))
+
+(defrecord Reduced [x]
+  IDeref
+  (deref [this] x))
 
 (defn reduced?
   [x]
   (instance? Reduced x))
+
+(defn reduce
+  ([f coll]
+   (reduce f (first coll) (rest coll)))
+  ([f val coll]
+   (if (reduced? val)
+     (deref val)
+     (let [s (seq coll)]
+       (if s
+         (recur f
+                (f val (first s))
+                (rest s))
+         val)))))
+
 
 (defn- preserving-reduced
   [rf]

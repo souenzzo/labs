@@ -3,6 +3,7 @@
             [hiccup2.core :as h]
             [io.pedestal.http :as http]
             [io.pedestal.http.route :as route]
+            [br.com.souenzzo.process :as proc]
             [ring.util.mime-type :as mime]
             [com.wsscode.pathom.core :as p]
             [com.wsscode.pathom.connect :as pc]
@@ -11,14 +12,19 @@
             [clojure.java.shell :as sh]
             [clojure.string :as string]
             [io.pedestal.http.body-params :as body-params]
-            [clojure.pprint :as pprint])
+            [clojure.pprint :as pprint]
+            [clojure.core.async :as async])
   (:import (java.io File)
            (java.net URLEncoder URLDecoder)
            (java.nio.charset StandardCharsets)))
 
 (set! *warn-on-reflection* true)
-(def schema {::dir {:db/unique :db.unique/identity}})
-(def state (ds/create-conn schema))
+(def schema {::dir         {:db/unique :db.unique/identity}
+             ::process-dir {:db/valueType :db.type/ref}
+             ::msg-process {:db/valueType :db.type/ref}
+             ::uuid        {:db/unique :db.unique/identity}
+             ::pid         {:db/unique :db.unique/identity}})
+(defonce state (ds/create-conn schema))
 
 (def register
   [(pc/mutation `create-repl-config
@@ -39,11 +45,28 @@
                 (fn [{:keys [parser] :as env} {::keys [dir profiles]}]
                   (let [profiles (map keyword (remove nil? (if (coll? profiles) profiles [profiles])))
                         eid [::dir dir]
+                        uuid (ds/squuid)
                         {::keys [path]} (-> (parser env `[{~eid [::path]}])
                                             (get eid))
-                        pb (-> (new ProcessBuilder ^"[Ljava.lang.String;" (into-array ["/usr/bin/java" "-cp" path "clojure.main"]))
-                               (.directory (io/file dir)))]
-
+                        p-state (promise)
+                        command ["/usr/bin/java" "-cp" path "clojure.main"]
+                        p (proc/execute {::proc/command   command
+                                         ::proc/on-stdout (fn [msg]
+                                                            (prn [:ok msg])
+                                                            (ds/transact! @p-state
+                                                                          [{::msg         msg
+                                                                            ::msg-process [::uuid uuid]}]))
+                                         ::proc/directory (io/file dir)})]
+                    (ds/transact! state [{:db/id "dir"
+                                          ::dir  dir}
+                                         {::pid         (proc/pid p)
+                                          ::process-dir "dir"
+                                          ::command     command
+                                          ::profiles    profiles
+                                          ::path        path
+                                          ::uuid        uuid
+                                          ::process     p}])
+                    (deliver p-state state)
                     {})))
    (pc/mutation `delete-profile
                 {::pc/sym `delete-profile}
@@ -121,6 +144,11 @@
   [req]
   (let [{::keys [projects]} (parser req [{::projects [::name ::dir ::href]}])]
     [:div
+     (for [pid (ds/q '[:find [?pid ...]
+                       :where
+                       [?e ::pid ?pid]]
+                     (ds/db state))]
+       [:pre (pr-str [:pid pid])])
      (for [{::keys [name dir href]} projects]
        [:li [:a {:href href}
              name]
@@ -193,9 +221,18 @@
           (pr-str profile)])]
       [:input {:type "submit"}]]]))
 
+(defn repl
+  [{:keys [path-params]}]
+  (let [pid (-> path-params :pid edn/read-string)]
+    [:pre (with-out-str (clojure.pprint/pprint (ds/pull (ds/db state)
+                                                        '[*
+                                                          {::_msg-process [*]}]
+                                                        [::pid pid])))]))
+
 (def routes
   `{"/"             projects
-    "/project/:dir" project})
+    "/project/:dir" project
+    "/repl/:pid"    repl})
 
 (def html-page
   {:name  ::html-page
@@ -206,7 +243,7 @@
                                          (h/raw "<!DOCTYPE html>")
                                          [:html
                                           [:head
-                                           [:link {:rel "stylesheet" :href "https://unpkg.com/mvp.css"}]
+                                           #_[:link {:rel "stylesheet" :href "https://unpkg.com/mvp.css"}]
                                            [:meta {:charset "UTF-8"}]
                                            [:title "my-clj-admin"]]
                                           [:body
