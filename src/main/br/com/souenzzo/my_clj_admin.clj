@@ -12,16 +12,17 @@
             [clojure.java.shell :as sh]
             [clojure.string :as string]
             [io.pedestal.http.body-params :as body-params]
-            [clojure.pprint :as pprint]
-            [clojure.core.async :as async])
+            [clojure.pprint :as pprint])
   (:import (java.io File)
            (java.net URLEncoder URLDecoder)
-           (java.nio.charset StandardCharsets)))
+           (java.nio.charset StandardCharsets)
+           (java.util Date)))
 
 (set! *warn-on-reflection* true)
 (def schema {::dir         {:db/unique :db.unique/identity}
              ::process-dir {:db/valueType :db.type/ref}
              ::msg-process {:db/valueType :db.type/ref}
+             ::insert-on   {:db/valueType :db.type/ref}
              ::uuid        {:db/unique :db.unique/identity}
              ::pid         {:db/unique :db.unique/identity}})
 (defonce state (ds/create-conn schema))
@@ -52,10 +53,25 @@
                         command ["/usr/bin/java" "-cp" path "clojure.main"]
                         p (proc/execute {::proc/command   command
                                          ::proc/on-stdout (fn [msg]
-                                                            (prn [:ok msg])
                                                             (ds/transact! @p-state
                                                                           [{::msg         msg
+                                                                            ::inst        (new Date)
                                                                             ::msg-process [::uuid uuid]}]))
+                                         ::proc/on-stdin  (fn []
+                                                            (let [conn @p-state
+                                                                  {:db/keys [id]
+                                                                   ::keys   [inserted-line]} (->> (ds/q '[:find [(pull ?e [*]) ...]
+                                                                                                          :in $ ?uuid
+                                                                                                          :where
+                                                                                                          [?x ::uuid ?uuid]
+                                                                                                          [?e ::insert-on ?x]
+                                                                                                          (not [?e ::ok? true])]
+                                                                                                        (ds/db conn) uuid)
+                                                                                                  (sort-by ::inst)
+                                                                                                  first)]
+                                                              (when inserted-line
+                                                                (ds/transact! conn [{:db/id id ::ok? true}])
+                                                                inserted-line)))
                                          ::proc/directory (io/file dir)})]
                     (ds/transact! state [{:db/id "dir"
                                           ::dir  dir}
@@ -68,6 +84,20 @@
                                           ::process     p}])
                     (deliver p-state state)
                     {})))
+   (pc/mutation `stop
+                {::pc/sym `stop}
+                (fn [{:keys [parser] :as env} {::keys [pid]}]
+                  (let [process (-> (ds/entity (ds/db state) [::pid (edn/read-string pid)])
+                                    ::process)]
+                    (proc/destroy process)
+                    {})))
+   (pc/mutation `insert-on-repl
+                {::pc/sym `insert-on-repl}
+                (fn [{:keys [parser] :as env} {::keys [pid inserted-line]}]
+                  (ds/transact! state [{::inserted-line (str inserted-line "\n")
+                                        ::inst          (new Date)
+                                        ::insert-on     [::pid (edn/read-string pid)]}])
+                  {}))
    (pc/mutation `delete-profile
                 {::pc/sym `delete-profile}
                 (fn [_ {::keys [dir description]}]
@@ -148,7 +178,8 @@
                        :where
                        [?e ::pid ?pid]]
                      (ds/db state))]
-       [:pre (pr-str [:pid pid])])
+       [:a {:href (str "/repl/" pid)}
+        (str "pid: " pid)])
      (for [{::keys [name dir href]} projects]
        [:li [:a {:href href}
              name]
@@ -224,10 +255,27 @@
 (defn repl
   [{:keys [path-params]}]
   (let [pid (-> path-params :pid edn/read-string)]
-    [:pre (with-out-str (clojure.pprint/pprint (ds/pull (ds/db state)
-                                                        '[*
-                                                          {::_msg-process [*]}]
-                                                        [::pid pid])))]))
+    [:div
+     [:form
+      {:action (str "/" `stop)
+       :method "POST"}
+      [:input {:hidden true :value pid
+               :name   (str `pid)}]
+      [:input {:type :submit :value "stop"}]]
+     [:pre (with-out-str (clojure.pprint/pprint (ds/pull (ds/db state)
+                                                         '[*]
+                                                         [::pid pid])))]
+     [:div
+      {:style {:background-color "lightgray"}}
+      (for [{::keys [msg]} (sort-by ::inst (::_msg-process (ds/entity (ds/db state) [::pid pid])))]
+        [:pre msg])]
+     [:form
+      {:action (str "/" `insert-on-repl)
+       :method "POST"}
+      [:input {:hidden true :value pid
+               :name   (str `pid)}]
+      [:input {:name (str `inserted-line)}]
+      [:input {:type :submit :value ">"}]]]))
 
 (def routes
   `{"/"             projects
