@@ -18,6 +18,24 @@
            (java.nio.charset StandardCharsets)
            (java.util Date)))
 
+(defn ui-action-button
+  [action kvs]
+  [:form
+   {:action (str "/" action)
+    :method "POST"}
+   (for [[k v] kvs]
+     (if (coll? v)
+       (for [v v]
+         [:input {:hidden true
+                  :value  (if (ident? v)
+                            (str (symbol v))
+                            (str v))
+                  :name   (str (symbol k))}])
+       [:input {:hidden true
+                :value  (str v)
+                :name   (str (symbol k))}]))
+   [:input {:type :submit :value (name action)}]])
+
 (set! *warn-on-reflection* true)
 (def schema {::dir         {:db/unique :db.unique/identity}
              ::process-dir {:db/valueType :db.type/ref}
@@ -203,29 +221,12 @@
          {:style {:padding "1rem"}}
          [:div description]
          [:div profiles]
-         [:form
-          {:method "POST"
-           :action (str "/" `delete-profile)}
-          [:input {:hidden true
-                   :name   (str `description)
-                   :value  description}]
-          [:input {:hidden true
-                   :name   (str `dir)
-                   :value  dir}]
-          [:input {:type  "submit"
-                   :value (str `delete-profile)}]]
-         [:form
-          {:method "POST"
-           :action (str "/" `start-repl)}
-          (for [profile profiles]
-            [:input {:hidden true
-                     :name   (str `profiles)
-                     :value  (name profile)}])
-          [:input {:hidden true
-                   :name   (str `dir)
-                   :value  dir}]
-          [:input {:type  "submit"
-                   :value (str `start-repl)}]]])]
+         (ui-action-button `delete-profile
+                           {::description description
+                            ::dir         dir})
+         (ui-action-button `start-repl
+                           {::profiles profiles
+                            ::dir      dir})])]
      [:form
       {:style  {:display        "flex"
                 :flex-direction "column"}
@@ -256,12 +257,7 @@
   [{:keys [path-params]}]
   (let [pid (-> path-params :pid edn/read-string)]
     [:div
-     [:form
-      {:action (str "/" `stop)
-       :method "POST"}
-      [:input {:hidden true :value pid
-               :name   (str `pid)}]
-      [:input {:type :submit :value "stop"}]]
+     (ui-action-button `stop {::pid pid})
      [:pre (with-out-str (clojure.pprint/pprint (ds/pull (ds/db state)
                                                          '[*]
                                                          [::pid pid])))]
