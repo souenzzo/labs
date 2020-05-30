@@ -37,8 +37,7 @@
             (if-let [input (on-stdin)]
               (let [bs (.getBytes (str input "\n"))]
                 (.write stdin bs)
-                (.flush stdin)
-                (recur))
+                (.flush stdin))
               (async/<!! (async/timeout timeout)))
             (when (alive? p)
               (recur))))))
