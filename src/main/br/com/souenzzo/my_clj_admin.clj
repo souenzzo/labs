@@ -291,8 +291,11 @@
                                            [:meta {:charset "UTF-8"}]
                                            [:title "my-clj-admin"]]
                                           [:body
-                                           [:a {:href "/"} "home"]
-                                           response]]))
+                                           {:onload "br.com.souenzzo.my_clj_admin.ui.main()"}
+                                           [:div {:id "target"}]
+                                           [:script {:src "/ui.js"}]
+                                           #_#_[:a {:href "/"} "home"]
+                                               response]]))
                          :headers {"Content-Type" (mime/default-mime-types "html")}
                          :status  200}))})
 
@@ -314,22 +317,24 @@
   (swap! http-state (fn [st]
                       (when st
                         (http/stop st))
-                      (-> {::http/join?  false
-                           ::http/routes (fn []
-                                           (route/expand-routes
-                                             (into #{}
-                                                   cat
-                                                   [(for [[path fn-name] routes]
-                                                      `[~path :get [html-page ~fn-name]])
-                                                    (for [mutation-sym (keys (::pc/index-mutations (pc/register {} register)))]
-                                                      `[~(str "/" mutation-sym)
-                                                        :post
-                                                        [~(body-params/body-params)
-                                                         handle-mutation]
-                                                        :route-name
-                                                        ~(keyword mutation-sym)])])))
-                           ::http/type   :jetty
-                           ::http/port   1111}
+                      (-> {::http/join?          false
+                           ::http/routes         (fn []
+                                                   (route/expand-routes
+                                                     (into #{}
+                                                           cat
+                                                           [(for [[path fn-name] routes]
+                                                              `[~path :get [html-page ~fn-name]])
+                                                            (for [mutation-sym (keys (::pc/index-mutations (pc/register {} register)))]
+                                                              `[~(str "/" mutation-sym)
+                                                                :post
+                                                                [~(body-params/body-params)
+                                                                 handle-mutation]
+                                                                :route-name
+                                                                ~(keyword mutation-sym)])])))
+                           ::http/type           :jetty
+                           ::http/secure-headers {:content-security-policy-settings ""}
+                           ::http/file-path      "target/public"
+                           ::http/port           1111}
                           http/default-interceptors
                           http/dev-interceptors
                           http/create-server

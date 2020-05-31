@@ -1,0 +1,8 @@
+{:deps   {:aliases [:test]}
+ :builds {:my-clj-admin {:target           :browser
+                         :output-dir       "target/public"
+                         :asset-path       "/"
+                         :modules          {:ui {:entries [br.com.souenzzo.my-clj-admin.ui]}}
+                         :compiler-options {:source-map true}
+                         :devtools         {:preloads   [com.fulcrologic.fulcro.inspect.preload]
+                                            :after-load br.com.souenzzo.my-clj-admin.ui/after-load}}}}

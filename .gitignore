@@ -4,3 +4,4 @@ target/
 .idea/
 .nrepl-port
 node_modules/
+.shadow-cljs/

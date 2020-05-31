@@ -1,18 +1,10 @@
 (ns user
-  (:require [clojure.java.io :as io])
-  (:import (org.apache.poi.xslf.usermodel XMLSlideShow XSLFSlide XSLFTextParagraph XSLFTextShape)))
+  (:require [clojure.java.io :as io]
+            [shadow.cljs.devtools.server :as shadow.server]
+            [shadow.cljs.devtools.api :as shadow.api]))
 
-(defn slide-show
-  [x]
-  (new XMLSlideShow (io/input-stream x)))
-
-(defn shapes
-  [^XMLSlideShow slide-show]
-  (->> (.getSlides slide-show)
-       (mapcat #(.getShapes ^XSLFSlide %))))
-
-(defn texts
-  [x]
-  (->> x
-       (shapes)
-       (map #(.getText ^XSLFTextShape %))))
+(defn my-clj-admin
+  []
+  (shadow.server/start!)
+  (shadow.api/watch :my-clj-admin)
+  (br.com.souenzzo.my-clj-admin/-main))
