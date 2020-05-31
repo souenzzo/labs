@@ -10,6 +10,7 @@
             [clojure.java.io :as io]
             [clojure.edn :as edn]
             [clojure.java.shell :as sh]
+            [cognitect.transit :as transit]
             [clojure.string :as string]
             [io.pedestal.http.body-params :as body-params]
             [clojure.pprint :as pprint])
@@ -320,7 +321,20 @@
                       (-> {::http/join?          false
                            ::http/routes         (fn []
                                                    (route/expand-routes
-                                                     (into #{}
+                                                     (into #{["/api" :post (fn [{:keys [body] :as env}]
+                                                                             (let [tx (some-> body
+                                                                                              io/input-stream
+                                                                                              (transit/reader :json)
+                                                                                              transit/read)
+                                                                                   result (parser env tx)]
+                                                                               {:body   (fn [w]
+                                                                                          (-> w
+                                                                                              (io/writer)
+                                                                                              (transit/writer :json)
+                                                                                              (transit/write result)))
+                                                                                :status 200}))
+                                                              :route-name ::api]}
+
                                                            cat
                                                            [(for [[path fn-name] routes]
                                                               `[~path :get [html-page ~fn-name]])

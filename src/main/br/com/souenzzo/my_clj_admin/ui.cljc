@@ -1,5 +1,6 @@
 (ns br.com.souenzzo.my-clj-admin.ui
   (:require #?@(:cljs    [[com.fulcrologic.fulcro.dom :as dom]
+                          [com.fulcrologic.fulcro.networking.http-remote :as http]
                           [goog.dom :as gdom]]
                 :default [[com.fulcrologic.fulcro.dom-server :as dom]])
             [com.fulcrologic.fulcro.mutations :as m]
@@ -9,8 +10,6 @@
             [com.fulcrologic.fulcro.application :as fa]
             [com.fulcrologic.fulcro.components :as comp :refer [defsc]]
             [clojure.edn :as edn]))
-
-
 
 (defsc Settings [this props]
   {:ident               (fn [] [:component/id ::settings])
@@ -96,9 +95,10 @@
   (let [node #?(:cljs (gdom/getElement "target")
                 :default nil)
         app (fa/fulcro-app {:client-did-mount (fn [app]
-                                                (dr/change-route app ["main"]))})]
+                                                (dr/change-route app ["main"]))
+                            :remotes          {:remote #?(:cljs    (http/fulcro-http-remote {})
+                                                          :default nil)}})]
     (fa/mount! app Root node)))
-
 
 (defn after-load
   []
