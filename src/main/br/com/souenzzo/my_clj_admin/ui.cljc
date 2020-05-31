@@ -24,6 +24,33 @@
                           true)}
   (dom/div "Settings"))
 
+(defsc MyProject [this {:br.com.souenzzo.my-clj-admin/keys [name dir href]}]
+  {:query [:br.com.souenzzo.my-clj-admin/name
+           :br.com.souenzzo.my-clj-admin/dir
+           :br.com.souenzzo.my-clj-admin/href]
+   :ident :br.com.souenzzo.my-clj-admin/dir}
+  (dom/div
+    (dom/div name)
+    (dom/div dir)
+    (dom/div href)))
+
+(def ui-my-project (comp/factory MyProject {:keyfn :br.com.souenzzo.my-clj-admin/dir}))
+
+(defsc Index [this {:br.com.souenzzo.my-clj-admin/keys [projects]}]
+  {:ident               (fn [] [:component/id ::index])
+   :query               [{:br.com.souenzzo.my-clj-admin/projects (comp/get-query MyProject)}]
+   :route-segment       ["index"]
+   :allow-route-change? (fn [this props]
+                          #?(:cljs (js/console.log (comp/get-ident this) "props" props))
+                          true)
+   :will-enter          (fn [app route-params]
+                          (dr/route-deferred [:component/id ::index]
+                                             #(df/load app [:component/id ::index] Index
+                                                       {:post-mutation        `dr/target-ready
+                                                        :post-mutation-params {:target [:component/id ::index]}})))}
+  (map ui-my-project projects))
+
+
 (defsc Person [this {:ui/keys      [modified?]
                      :person/keys  [id name]
                      :address/keys [city state]
@@ -71,7 +98,7 @@
   (dom/div "Main"))
 
 (dr/defrouter TopRouter [this {:keys [current-state pending-path-segment]}]
-  {:router-targets [Main Settings Person]}
+  {:router-targets [Main Settings Person Index]}
   (case current-state
     :pending (dom/div "Loading...")
     :failed (dom/div "Loading seems to have failed. Try another route.")
@@ -85,6 +112,7 @@
   (dom/div
     (dom/button {:onClick #(dr/change-route this ["main"])} "Go to main")
     (dom/button {:onClick #(dr/change-route this ["settings"])} "Go to settings")
+    (dom/button {:onClick #(dr/change-route this ["index"])} "Go to index")
     (dom/button {:onClick #(dr/change-route this ["person" "1"])} "Go to person 1")
     (dom/button {:onClick #(dr/change-route this ["person" "2"])} "Go to person 2")
     (ui-top-router router)))

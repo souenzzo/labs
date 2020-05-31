@@ -329,7 +329,7 @@
                                                                                    result (parser env tx)]
                                                                                {:body   (fn [w]
                                                                                           (-> w
-                                                                                              (io/writer)
+                                                                                              io/output-stream
                                                                                               (transit/writer :json)
                                                                                               (transit/write result)))
                                                                                 :status 200}))
